@@ -58,6 +58,7 @@ class Road():
             stripe_pos_list.append(vector(z,0,0))
         for position in stripe_pos_list:
             stripe_list.append( box( frame=self.base, pos = position, length=stripe_length, width=stripe_width, height=0.3, color=color.yellow, axis=self.pave.axis))
+        stoplight_list = []
 
     def change_dir(self, new_dir):
         self.base.axis=new_dir
@@ -86,9 +87,10 @@ class Stoplight():
         self.green_light()
         if dot(direction,vector(0,0,1)):
         	ns_list_of_lights.append(self)
+        	self.location = vector(-direction.z*(road_width/4),20,-direction.z*position_on_road)
         else:
         	ew_list_of_lights.append(self)
-        self.location = vector(-direction.z*(road_width/4),20,-direction.z*position_on_road)
+        	self.location = vector(direction.x*position_on_road,20,direction.x*(road_width/4))
 
     def move(self, new_position):
         self.base.pos=new_position
@@ -147,7 +149,7 @@ class Stoplight():
     	return vector(self.is_red,self.is_yellow,self.is_green)
 
 class Car():
-    def __init__(self, pos_of_road, first_pos_on_road, v_direction):
+    def __init__(self, named, pos_of_road, first_pos_on_road, v_direction):
         if dot(v_direction,vector(0,0,1)) != 0:
             #if direction is in "z" direction, or north/south
             self.body=box(pos=vector(-v_direction.z*(road_width/4),0,-v_direction.z*first_pos_on_road)+pos_of_road, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
@@ -160,6 +162,8 @@ class Car():
         self.v_hat = v_direction
         self.v = self.v_mag*self.v_hat
         self.a = vector(0,0,0)
+        self.name = named
+        self.attached_road = pos_of_road
         self.next_light = self.find_nearest_light()
         self.seen_red_light = false
 
@@ -172,26 +176,25 @@ class Car():
         list_of_lights = []
         if(dot(self.v_hat,vector(0,0,1))):
         	list_of_lights = ns_list_of_lights
-        	#print "reading ns list, length: ",len(list_of_lights)
         else:
         	list_of_lights = ew_list_of_lights
-        	#print "reading ew list, length: ",len(list_of_lights)
         for i in range(len(list_of_lights)):
-        	#print list_of_lights[i].location
-        	#print list_of_lights[i].direction
-        	same_dir = dot(self.v_hat, list_of_lights[i].direction)
-        	#print("same_dir = ", same_dir)
+        	dist = dot((list_of_lights[i].location - self.body.pos),self.v_hat)
+        	#print "car ",self.name," dist to light ", dist
         	#print dot(self.body.pos,self.v_hat)
-        	if(same_dir == 1 and (dot(list_of_lights[i].location,self.v_hat) > dot(self.body.pos,self.v_hat) and dot(self.v_hat,vector(0,0,1))) or (dot(list_of_lights[i].location,self.v_hat) > dot(self.body.pos,self.v_hat) and dot(self.v_hat,vector(1,0,0)))):
-        		dist = -dot(self.body.pos - list_of_lights[i].location,self.v_hat)
-        		if(dot(self.v_hat,vector(1,0,0))):
-        			print("dist to light = ", dist)
-        		if (dist < minLightDist):
+        	if(dist>0):
+        		#dist = dot((list_of_lights[i].location - self.body.pos),self.v_hat)
+        		#if(dot(self.v_hat,vector(1,0,0))):
+        		#print("dist to light = ", dist)
+        		if (dist < minLightDist and dist>0):
         			minLightDist = dist
         			lightNo = i
-        			#print "found nearest light at ", list_of_lights[i].location
+        			#print "found nearest light at ", list_of_lights[i].location, "dist", dist
         self.next_light = list_of_lights[lightNo]
-        return list_of_lights[lightNo]
+        if(minLightDist<9999):
+        	return list_of_lights[lightNo]
+        else:
+        	return 0
 
     def is_offscreen(self):
     	if( dot(self.body.pos,self.v_hat)>200):
@@ -210,13 +213,20 @@ class Car():
     def look_for_lights(self):
     	#refill lights associated to car
     	next_light = self.find_nearest_light()
+    	if(next_light==0):
+    		self.v = 37*self.v_hat
+    		self.a_mag = 0
+    		self.seen_red_light=false
+    		return
     	#print next_light.location
-    	dist = abs(dot((next_light.location - self.body.pos),self.v_hat))
-    	print "next list dist",dist
-    	if (next_light.is_red and dist<self.body.length*3 and self.seen_red_light==false):
+    	dist = dot((next_light.location - self.body.pos),self.v_hat)
+    	#print "for ", self.name
+    	#print "next list dist",dist
+    	if (next_light.is_red and dist>15 and self.seen_red_light==false):
+    		
     		self.a = self.slow_to_light()
     		self.seen_red_light=true
-    	if(next_light.is_green):
+    	if(next_light.is_green or dist<15):
     		self.v = 37*self.v_hat
     		self.a_mag = 0
     		self.seen_red_light=false
@@ -232,12 +242,12 @@ class Car():
         	same_dir = dot(self.v_hat, list_of_cars[i].v_hat)
         	#print("same_dir = ", same_dir)
         	if(same_dir == 1 and dot(list_of_cars[i].body.pos,self.v_hat) > dot(self.body.pos,self.v_hat)):
-        		dist = mag(self.body.pos - list_of_cars[i].body.pos) - (self.body.length*3)
+        		dist = mag(self.body.pos - list_of_cars[i].body.pos) - (self.body.length*0.5)
         		#print("dist = ", dist)
         		if (dist < minCarDist):
         			minCarDist = dist
         			carNo = i
-        			#print "found nearest light at ", list_of_lights[i].location
+        			#print "found nearest car at ", list_of_cars[i].body.pos
         if(carNo>-1):
         	return list_of_cars[carNo]
         else:
@@ -273,6 +283,8 @@ def toggle_lights(light1, light2):
 road1 = Road(0, int(road_length), directions['north'])
 road2 = Road(0, int(road_length), directions['west'])
 road2.move(road2.base.pos+vector(0,0,-road1.pave.length/8))
+road3 = Road(0, int(road_length), directions['west'])
+road3.move(road3.base.pos+vector(0,0,+road1.pave.length/8))
 ##
 ##key=scene.kb.getkey()
 
@@ -285,23 +297,29 @@ light2 = Stoplight(road1.base.pos,+road1.pave.length/8, directions['north'])
 print "light2 created at location ", light2.location
 light2.green_light()
 
-light2_otherSide = Stoplight(road2.base.pos,0,directions['east'])
-light2_otherSide.green_light()
-print "light3 created at location ", light2_otherSide.location
+light1_otherSide = Stoplight(road2.base.pos,0,directions['east'])
+light1_otherSide.green_light()
+print "light1_otherSide created at location ", light1_otherSide.location
+
+light2_otherSide = Stoplight(road3.base.pos,0,directions['east'])
+light2_otherSide.red_light()
+print "light2_otherSide created at location ", light2_otherSide.location
 
 light3 = Stoplight(road2.base.pos,road2.pave.length/4, directions['east'])
 light3.red_light()
+print "road 2 size: ",road2.pave.pos, road2.pave.length
+print "light3 created at location ", light3.location
 
 ##light2 = Stoplight(next_road.base.pos,-new_road.pave.length/4, directions['north'])
 print "stoplight list size ", len(ns_list_of_lights), " ", len(ew_list_of_lights)
 
 list_of_cars = []
-car1 = Car(road1.base.pos, road1.pave.length/2, directions['north'])
+car1 = Car("ns primary car",road1.base.pos, road1.pave.length/2, directions['south'])
 print "car created at ",car1.body.pos
 list_of_cars.append(car1)
 
-car2 = Car(road2.base.pos, -road2.pave.length/2, directions['east'])
-print "car created at ",car2.body.pos
+car2 = Car("ew primary car", road2.base.pos, -road2.pave.length/2, directions['east'])
+print car2.name, " created at ",car2.body.pos
 list_of_cars.append(car2)
 #print(light1.case.pos)
 #print(car1.next_light)
@@ -309,17 +327,24 @@ list_of_cars.append(car2)
 
 
 t=0
-delta_t = 1/30
+delta_t = 1/24
 simtime = 50  #seconds
+ithCar=0
+carN = []
+lastSpawnTime=0
 
 while t < simtime:
     rate(1/delta_t)
 
+    #Control rate of stoplight changes
     #stupid modulo workaround for float objects
-    if((int)(t*(1/delta_t))%(int)(5*(1/delta_t))==0 and t>0.01):
-    	light1.toggle()
+    if((int)(t*(1/delta_t))%(int)(4*(1/delta_t))==0 and t>0.01):
     	light2.toggle()
     	light2_otherSide.toggle()
+
+    if((int)(t*(1/delta_t))%(int)(5*(1/delta_t))==0 and t>0.01):
+    	light1.toggle()
+    	light1_otherSide.toggle()
 
     if((int)(t*(1/delta_t))%(int)(3*(1/delta_t))==0 and t>0.01):
     	light3.toggle()
@@ -329,7 +354,9 @@ while t < simtime:
     ## and update position
     for carObj in list_of_cars:
     	if(carObj.find_nearest_car()):
-    		if(mag(carObj.find_nearest_car().body.pos - carObj.body.pos) < mag(carObj.find_nearest_light().location - carObj.body.pos)):
+    		if(carObj.find_nearest_light()==0):
+    			carObj.look_for_cars()
+    		elif(mag(carObj.find_nearest_car().body.pos - carObj.body.pos) < mag(carObj.find_nearest_light().location - carObj.body.pos)):
     			#print "nearest car: ",mag(carObj.find_nearest_car().body.pos - carObj.body.pos)
     			#print "nearest light: ",mag(carObj.find_nearest_light().location - carObj.body.pos)
     			#print "car position: ",mag(carObj.body.pos)
@@ -345,25 +372,23 @@ while t < simtime:
     		deltaR1 = vector(0,0,0)
     	carObj.move(deltaR1)
 
-    lastSpawnTime=0
-    carN = []
-    ithCar=0
-    xyToggle=0
-    if(t>3 and len(list_of_cars)<3 and t-lastSpawnTime>1):
-    	if(xyToggle%2):
-    		carN.append(Car(road1.base.pos, road1.pave.length/2, directions['north']))
+    if(len(list_of_cars)<3 and t-lastSpawnTime>2):
+    	if(ithCar%3==2):
+    		print "appending car",ithCar
+    		carN.append(Car("car"+str(ithCar), road1.base.pos, road1.pave.length/2, directions['south']))
+    	elif(ithCar%3==1):
+    		carN.append(Car("car"+str(ithCar), road2.base.pos, -road2.pave.length/2, directions['east']))
     	else:
-    		carN.append(Car(road2.base.pos, -road2.pave.length/2, directions['east']))
-    	xyToggle+=1
-    	print "car toggle",xyToggle
+    		carN.append(Car("car"+str(ithCar), road3.base.pos, -road3.pave.length/2, directions['east']))
     	list_of_cars.append(carN[ithCar])
     	lastSpawnTime=t
-    	ithCar+=1
+    	ithCar = ithCar+1
 
     ##cleanup cars once they leave the frame
     for carObj in list_of_cars:
     	if(carObj.is_offscreen()):
     		list_of_cars.remove(carObj)
+    		carObj.visible=false
     		del carObj
 
 
