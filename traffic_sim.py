@@ -28,6 +28,7 @@ directions = {'north':vector(0,0,-1), 'south':vector(0,0,1), 'east':vector(1,0,0
 
 ##  create a north, south, east, and west compass on map for ease of use
 ##  NOTE: North is -z, South is +z, East is +x, and West is -x
+'''
 comp_scale = 4
 north_vec = arrow(pos=comp_scale*vector(10,0,10), axis=comp_scale*vector(0,0,-5), color=color.red)
 north_text = text(text="North (-z)", pos = north_vec.pos+north_vec.axis, height=1*comp_scale, color=north_vec.color, up=vector(0,0,-1))
@@ -37,7 +38,7 @@ east_vec = arrow(pos=north_vec.pos, axis=comp_scale*vector(5,0,0), color=color.g
 east_text = text(text="East (-x)", pos = east_vec.pos+east_vec.axis+vector(0,0,-1), height=1*comp_scale, color=east_vec.color, up=vector(0,0,-1))
 west_vec = arrow(pos=north_vec.pos, axis=comp_scale*vector(-5,0,0), color=color.blue)
 west_text = text(text="West (+x)", pos = west_vec.pos+west_vec.axis+vector(0,0,-1), height=1*comp_scale, color=west_vec.color, up=vector(0,0,-1))
-
+'''
 
 ##  create a road class that will be the base of the others; use this to make easier position managment
 class Road():
@@ -48,35 +49,40 @@ class Road():
     		xpos=YorXpos
     	if(dot(direction,vector(1,0,0))):
     		ypos=YorXpos
-        self.base=frame(pos=vector(xpos,0,ypos), up=vector(0,1,0), axis=direction)
+    	print "creating road with coordinates",vector(xpos,0,ypos)
+        self.base=frame(pos=vector(0,0,0), up=vector(0,1,0), axis=direction)
         self.pave = box(frame=self.base,pos=vector(xpos,0,ypos), length=distance, width = road_width, height=0.25, color=(0.5,0.5,0.5), axis=vector(1,0,0)) #axis here points along axis of frame
         #lane stripes are 10 feet long and 30 feet spacing between them  (not sure about spacing...)
+        self.stoplight_list=[]
         stripe_list=[]
         stripe_pos_list=[]
         stripe_zpos_list=range(int(-self.pave.length/2),int(self.pave.length/2+stripe_spacing),stripe_spacing)
         for z in stripe_zpos_list:
-            stripe_pos_list.append(vector(z,0,0))
+            stripe_pos_list.append(vector(z+xpos,0,ypos))
         for position in stripe_pos_list:
             stripe_list.append( box( frame=self.base, pos = position, length=stripe_length, width=stripe_width, height=0.3, color=color.yellow, axis=self.pave.axis))
-        stoplight_list = []
 
     def change_dir(self, new_dir):
         self.base.axis=new_dir
 
     def move(self, new_pos):
         self.base.pos = new_pos
+        self.pave.pos = new_pos
+
+    def get_stoplights(self):
+    	return self.stoplight_list
 
 ##  create a stoplight class that has member functions to change the color, change the position, etc.
 class Stoplight():
-    def __init__(self, pos_of_road, position_on_road, direction):
-        self.base = frame(pos=pos_of_road)
+    def __init__(self, road, position_on_road, direction):
+        self.base = frame(pos=road.pave.pos)
         #   NOTE:::  All positions of objects witihin the frame are RELATIVE to the frame's position, not the world position
         if dot(direction,vector(0,0,1)) != 0:
             #if direction is in "z" direction, or north/south
-            self.case=box(frame=self.base,pos=vector(-direction.z*(road_width/4),20,-direction.z*position_on_road), length=4, width=4,height=2, color=color.white)
+            self.case=box(frame=self.base,pos=vector(-direction.z*(road.pave.width/4),20,-direction.z*position_on_road), length=4, width=4,height=2, color=color.white)
         else:
             #if direction is in "x" direciotn, or east/west
-            self.case=box(frame=self.base,pos=vector(direction.x*position_on_road,20,direction.x*(road_width/4)), length=4, width=4,height=2, color=color.white)
+            self.case=box(frame=self.base,pos=vector(direction.x*position_on_road,20,direction.x*(road.pave.width/4)), length=4, width=4,height=2, color=color.white)
         self.yellow=sphere(frame=self.base,pos=self.case.pos+vector(0,self.case.height/2,0), radius=light_rad, color=color.yellow)
         self.green=sphere(frame=self.base,pos=self.case.pos+vector(0,self.case.height/2,0), radius=light_rad, color=color.green)
         self.red=sphere(frame=self.base,pos=self.case.pos+vector(0,self.case.height/2,0), radius=light_rad, color=color.red)
@@ -85,12 +91,14 @@ class Stoplight():
         self.is_yellow = False
         self.is_red = False
         self.green_light()
+        self.attached_road = road
+        road.get_stoplights().append(self)
         if dot(direction,vector(0,0,1)):
-        	ns_list_of_lights.append(self)
-        	self.location = vector(-direction.z*(road_width/4),20,-direction.z*position_on_road)
+        	#ns_list_of_lights.append(self)
+        	self.location = vector(-direction.z*(road.pave.width/4),20,-direction.z*position_on_road)
         else:
-        	ew_list_of_lights.append(self)
-        	self.location = vector(direction.x*position_on_road,20,direction.x*(road_width/4))
+        	#ew_list_of_lights.append(self)
+        	self.location = vector(direction.x*position_on_road,20,direction.x*(road.pave.width/4))
 
     def move(self, new_position):
         self.base.pos=new_position
@@ -149,13 +157,13 @@ class Stoplight():
     	return vector(self.is_red,self.is_yellow,self.is_green)
 
 class Car():
-    def __init__(self, named, pos_of_road, first_pos_on_road, v_direction):
+    def __init__(self, named, road, first_pos_on_road, v_direction):
         if dot(v_direction,vector(0,0,1)) != 0:
             #if direction is in "z" direction, or north/south
-            self.body=box(pos=vector(-v_direction.z*(road_width/4),0,-v_direction.z*first_pos_on_road)+pos_of_road, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
+            self.body=box(pos=vector(-v_direction.z*(road_width/4),0,-v_direction.z*first_pos_on_road)+road.pave.pos, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
         else:
             #if direction is in "x" direciotn, or east/west
-            self.body=box(pos=vector(v_direction.x*first_pos_on_road,0,v_direction.x*(road_width/4))+pos_of_road, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
+            self.body=box(pos=vector(v_direction.x*first_pos_on_road,0,v_direction.x*(road_width/4))+road.pave.pos, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
         
         ##  create velocity vector by using mag * dir
         self.v_mag = 37 # feet/second   ==  25 mph ;  rough speed of standard car
@@ -163,7 +171,7 @@ class Car():
         self.v = self.v_mag*self.v_hat
         self.a = vector(0,0,0)
         self.name = named
-        self.attached_road = pos_of_road
+        self.attached_road = road
         self.next_light = self.find_nearest_light()
         self.seen_red_light = false
 
@@ -173,11 +181,7 @@ class Car():
         #print(list_of_lights)
         minLightDist=9999
         lightNo=0
-        list_of_lights = []
-        if(dot(self.v_hat,vector(0,0,1))):
-        	list_of_lights = ns_list_of_lights
-        else:
-        	list_of_lights = ew_list_of_lights
+        list_of_lights = self.attached_road.stoplight_list
         for i in range(len(list_of_lights)):
         	dist = dot((list_of_lights[i].location - self.body.pos),self.v_hat)
         	#print "car ",self.name," dist to light ", dist
@@ -281,44 +285,43 @@ def toggle_lights(light1, light2):
 ########################################################################
 ##new_light = Stoplight(vector(0,10,0))
 road1 = Road(0, int(road_length), directions['north'])
-road2 = Road(0, int(road_length), directions['west'])
-road2.move(road2.base.pos+vector(0,0,-road1.pave.length/8))
-road3 = Road(0, int(road_length), directions['west'])
-road3.move(road3.base.pos+vector(0,0,+road1.pave.length/8))
+road2 = Road(-road1.pave.length/8, int(road_length), directions['west'])
+#road2.move(road2.base.pos+vector(0,0,-road1.pave.length/8))
+road3 = Road(road1.pave.length/8, int(road_length), directions['west'])
+#road3.move(road3.base.pos+vector(0,0,+road1.pave.length/8))
 ##
 ##key=scene.kb.getkey()
 
-
-light1 = Stoplight(road1.base.pos,-road1.pave.length/8, directions['north'])
+light1 = Stoplight(road1,-road1.pave.length/8, directions['north'])
 print "light1 created at location ", light1.location
 light1.red_light()
 
-light2 = Stoplight(road1.base.pos,+road1.pave.length/8, directions['north'])
+light2 = Stoplight(road1,+road1.pave.length/8, directions['north'])
 print "light2 created at location ", light2.location
 light2.green_light()
 
-light1_otherSide = Stoplight(road2.base.pos,0,directions['east'])
+light1_otherSide = Stoplight(road2,0,directions['east'])
 light1_otherSide.green_light()
 print "light1_otherSide created at location ", light1_otherSide.location
 
-light2_otherSide = Stoplight(road3.base.pos,0,directions['east'])
+light2_otherSide = Stoplight(road3,0,directions['east'])
 light2_otherSide.red_light()
 print "light2_otherSide created at location ", light2_otherSide.location
 
-light3 = Stoplight(road2.base.pos,road2.pave.length/4, directions['east'])
+light3 = Stoplight(road2,road2.pave.length/4, directions['east'])
 light3.red_light()
 print "road 2 size: ",road2.pave.pos, road2.pave.length
 print "light3 created at location ", light3.location
 
 ##light2 = Stoplight(next_road.base.pos,-new_road.pave.length/4, directions['north'])
-print "stoplight list size ", len(ns_list_of_lights), " ", len(ew_list_of_lights)
+print "stoplight list size ", len(road1.stoplight_list), " ", len(road2.stoplight_list)," ",len(road3.stoplight_list)
 
 list_of_cars = []
-car1 = Car("ns primary car",road1.base.pos, road1.pave.length/2, directions['south'])
+car1 = Car("ns primary car",road1, road1.pave.length/2, directions['south'])
 print "car created at ",car1.body.pos
 list_of_cars.append(car1)
 
-car2 = Car("ew primary car", road2.base.pos, -road2.pave.length/2, directions['east'])
+car2 = Car("ew primary car", road2, -road2.pave.length/2, directions['east'])
 print car2.name, " created at ",car2.body.pos
 list_of_cars.append(car2)
 #print(light1.case.pos)
@@ -372,14 +375,14 @@ while t < simtime:
     		deltaR1 = vector(0,0,0)
     	carObj.move(deltaR1)
 
-    if(len(list_of_cars)<3 and t-lastSpawnTime>2):
+    if(len(list_of_cars)<5 and t-lastSpawnTime>1):
     	if(ithCar%3==2):
     		print "appending car",ithCar
-    		carN.append(Car("car"+str(ithCar), road1.base.pos, road1.pave.length/2, directions['south']))
+    		carN.append(Car("car"+str(ithCar), road1, road1.pave.length/2, directions['south']))
     	elif(ithCar%3==1):
-    		carN.append(Car("car"+str(ithCar), road2.base.pos, -road2.pave.length/2, directions['east']))
+    		carN.append(Car("car"+str(ithCar), road2, -road2.pave.length/2, directions['east']))
     	else:
-    		carN.append(Car("car"+str(ithCar), road3.base.pos, -road3.pave.length/2, directions['east']))
+    		carN.append(Car("car"+str(ithCar), road3, -road3.pave.length/2, directions['east']))
     	list_of_cars.append(carN[ithCar])
     	lastSpawnTime=t
     	ithCar = ithCar+1
