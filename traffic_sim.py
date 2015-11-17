@@ -1,6 +1,6 @@
 from __future__ import division
 from visual import *
-
+import time as time
 
 ##  length units are to be in feet for ease of use in the USA ('Merica!)
 light_rad=0.75
@@ -50,15 +50,15 @@ class Road():
     	if(dot(direction,vector(1,0,0))):
     		ypos=YorXpos
     	print "creating road with coordinates",vector(xpos,0,ypos)
-        self.base=frame(pos=vector(0,0,0), up=vector(0,1,0), axis=direction)
-        self.pave = box(frame=self.base,pos=vector(xpos,0,ypos), length=distance, width = road_width, height=0.25, color=(0.5,0.5,0.5), axis=vector(1,0,0)) #axis here points along axis of frame
+        self.base=frame(pos=vector(xpos,0,ypos), up=vector(0,1,0), axis=direction)
+        self.pave = box(frame=self.base,pos=vector(0,0,0), length=distance, width = road_width, height=0.25, color=(0.5,0.5,0.5), axis=vector(1,0,0)) #axis here points along axis of frame
         #lane stripes are 10 feet long and 30 feet spacing between them  (not sure about spacing...)
         self.stoplight_list=[]
         stripe_list=[]
         stripe_pos_list=[]
         stripe_zpos_list=range(int(-self.pave.length/2),int(self.pave.length/2+stripe_spacing),stripe_spacing)
         for z in stripe_zpos_list:
-            stripe_pos_list.append(vector(z+xpos,0,ypos))
+            stripe_pos_list.append(vector(z,0,0))
         for position in stripe_pos_list:
             stripe_list.append( box( frame=self.base, pos = position, length=stripe_length, width=stripe_width, height=0.3, color=color.yellow, axis=self.pave.axis))
 
@@ -75,7 +75,7 @@ class Road():
 ##  create a stoplight class that has member functions to change the color, change the position, etc.
 class Stoplight():
     def __init__(self, road, position_on_road, direction):
-        self.base = frame(pos=road.pave.pos)
+        self.base = frame(pos=road.base.pos)
         #   NOTE:::  All positions of objects witihin the frame are RELATIVE to the frame's position, not the world position
         if dot(direction,vector(0,0,1)) != 0:
             #if direction is in "z" direction, or north/south
@@ -93,6 +93,8 @@ class Stoplight():
         self.green_light()
         self.attached_road = road
         road.get_stoplights().append(self)
+        self.nCarsThrough = 0
+        self.cars_seen = []
         if dot(direction,vector(0,0,1)):
         	#ns_list_of_lights.append(self)
         	self.location = vector(-direction.z*(road.pave.width/4),20,-direction.z*position_on_road)
@@ -160,10 +162,10 @@ class Car():
     def __init__(self, named, road, first_pos_on_road, v_direction):
         if dot(v_direction,vector(0,0,1)) != 0:
             #if direction is in "z" direction, or north/south
-            self.body=box(pos=vector(-v_direction.z*(road_width/4),0,-v_direction.z*first_pos_on_road)+road.pave.pos, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
+            self.body=box(pos=vector(-v_direction.z*(road_width/4),0,-v_direction.z*first_pos_on_road)+road.base.pos, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
         else:
             #if direction is in "x" direciotn, or east/west
-            self.body=box(pos=vector(v_direction.x*first_pos_on_road,0,v_direction.x*(road_width/4))+road.pave.pos, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
+            self.body=box(pos=vector(v_direction.x*first_pos_on_road,0,v_direction.x*(road_width/4))+road.base.pos, length=16, width=6,height=5, color=color.cyan, axis = v_direction)
         
         ##  create velocity vector by using mag * dir
         self.v_mag = 37 # feet/second   ==  25 mph ;  rough speed of standard car
@@ -174,6 +176,7 @@ class Car():
         self.attached_road = road
         self.next_light = self.find_nearest_light()
         self.seen_red_light = false
+        self.traversal_time = time.time()
 
     #find nearest light in same direction as car is moving
     def find_nearest_light(self):
@@ -289,7 +292,11 @@ road2 = Road(-road1.pave.length/8, int(road_length), directions['west'])
 #road2.move(road2.base.pos+vector(0,0,-road1.pave.length/8))
 road3 = Road(road1.pave.length/8, int(road_length), directions['west'])
 #road3.move(road3.base.pos+vector(0,0,+road1.pave.length/8))
-##
+road4 = Road(road2.pave.length/4, int(road_length), directions['north'])
+
+road5 = Road(-road2.pave.length/4, int(road_length), directions['north'])
+
+#road6 = Road(-20, int(road_length), directions['north'])
 ##key=scene.kb.getkey()
 
 light1 = Stoplight(road1,-road1.pave.length/8, directions['north'])
@@ -307,11 +314,34 @@ print "light1_otherSide created at location ", light1_otherSide.location
 light2_otherSide = Stoplight(road3,0,directions['east'])
 light2_otherSide.red_light()
 print "light2_otherSide created at location ", light2_otherSide.location
-
+'''
 light3 = Stoplight(road2,road2.pave.length/4, directions['east'])
 light3.red_light()
 print "road 2 size: ",road2.pave.pos, road2.pave.length
 print "light3 created at location ", light3.location
+'''
+
+light4 = Stoplight(road4, -road4.pave.length/8, directions['north'])
+light4.red_light()
+light4_otherSide = Stoplight(road2,road2.pave.length/4,directions['east'])
+light4_otherSide.green_light()
+
+light5 = Stoplight(road4, road4.pave.length/8, directions['north'])
+light5.red_light()
+light5_otherSide = Stoplight(road3,road3.pave.length/4,directions['east'])
+light5_otherSide.green_light()
+
+
+light6 = Stoplight(road5, -road5.pave.length/8, directions['north'])
+light6.red_light()
+light6_otherSide = Stoplight(road3,-road3.pave.length/4,directions['east'])
+light6_otherSide.green_light()
+
+light7 = Stoplight(road5, road5.pave.length/8, directions['north'])
+light7.red_light()
+light7_otherSide = Stoplight(road2,-road2.pave.length/4,directions['east'])
+light7_otherSide.green_light()
+
 
 ##light2 = Stoplight(next_road.base.pos,-new_road.pave.length/4, directions['north'])
 print "stoplight list size ", len(road1.stoplight_list), " ", len(road2.stoplight_list)," ",len(road3.stoplight_list)
@@ -330,11 +360,13 @@ list_of_cars.append(car2)
 
 
 t=0
-delta_t = 1/24
+delta_t = 1/20
 simtime = 50  #seconds
 ithCar=0
 carN = []
 lastSpawnTime=0
+despawnedCars=0
+sumTime=0
 
 while t < simtime:
     rate(1/delta_t)
@@ -348,9 +380,12 @@ while t < simtime:
     if((int)(t*(1/delta_t))%(int)(5*(1/delta_t))==0 and t>0.01):
     	light1.toggle()
     	light1_otherSide.toggle()
+    	light5.toggle()
+    	light5_otherSide.toggle()
 
     if((int)(t*(1/delta_t))%(int)(3*(1/delta_t))==0 and t>0.01):
-    	light3.toggle()
+    	light4.toggle()
+    	light4_otherSide.toggle()
 
     ##  check distance to closest light
     ## update speed
@@ -375,12 +410,16 @@ while t < simtime:
     		deltaR1 = vector(0,0,0)
     	carObj.move(deltaR1)
 
-    if(len(list_of_cars)<5 and t-lastSpawnTime>1):
-    	if(ithCar%3==2):
+    if(len(list_of_cars)<8 and t-lastSpawnTime>1):
+    	if(ithCar%5==4):
     		print "appending car",ithCar
     		carN.append(Car("car"+str(ithCar), road1, road1.pave.length/2, directions['south']))
-    	elif(ithCar%3==1):
+    	elif(ithCar%5==3):
     		carN.append(Car("car"+str(ithCar), road2, -road2.pave.length/2, directions['east']))
+    	elif(ithCar%5==2):
+    		carN.append(Car("car"+str(ithCar), road4, road4.pave.length/2, directions['south']))
+    	#elif(ithCar%5==1):
+    	#carN.append(Car("car"+str(ithCar), road5, road5.pave.length/2, directions['south']))
     	else:
     		carN.append(Car("car"+str(ithCar), road3, -road3.pave.length/2, directions['east']))
     	list_of_cars.append(carN[ithCar])
@@ -392,9 +431,43 @@ while t < simtime:
     	if(carObj.is_offscreen()):
     		list_of_cars.remove(carObj)
     		carObj.visible=false
+    		sumTime+=(time.time()-carObj.traversal_time)
+    		despawnedCars+=1
     		del carObj
+
+    ##increment stoplights for cars passed through
+    for road in road1,road2,road3,road4:
+        for light in road.stoplight_list:
+            for car in list_of_cars:
+                if(car.attached_road == road):
+                    if(abs(dot((light.location - car.body.pos),vector(1,0,1)))<=car.body.length and (car not in light.cars_seen)):
+                        light.nCarsThrough+=1
+                        light.cars_seen.append(car)
 
 
     ##  update time
     t = t + delta_t
+
+sumTime = sumTime/float(despawnedCars)
+print "Average traversal time:",sumTime,"seconds"
+
+print "road 1 -- ncars through stoplights:"
+for light in road1.stoplight_list:
+    print light.nCarsThrough
+
+print "road 2 -- ncars through stoplights:"
+for light in road2.stoplight_list:
+    print light.nCarsThrough
+
+print "road 3 -- ncars through stoplights:"
+for light in road3.stoplight_list:
+    print light.nCarsThrough
+
+print "road 4 -- ncars through stoplights:"
+for light in road4.stoplight_list:
+    print light.nCarsThrough
+
+print "road 5 -- ncars through stoplights:"
+for light in road5.stoplight_list:
+    print light.nCarsThrough
 
